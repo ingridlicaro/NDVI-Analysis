@@ -1,0 +1,81 @@
+#Packages
+import rasterio
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import pearsonr
+import rasterio
+from rasterio.enums import Resampling
+import seaborn as sns
+
+#Open file
+def read_raster(file_path):
+    with rasterio.open(file_path) as src:
+        data = src.read(1)
+        profile = src.profile
+    return data, profile
+raster_Drone_path = 'C:/NDVI_Dron2022.tif'
+raster_Sat_path = 'C:/NDVI_Sat2022.tif'
+ndvi_dron, profile_Drone = read_raster(raster_Drone_path)
+ndvi_sat, profile_Sat = read_raster(raster_Sat_path)
+print(f'Forma NDVI drone: {ndvi_dron.shape}')
+print(f'Forma NDVI sat: {ndvi_sat.shape}')
+
+#Resample Dron imagens
+with rasterio.open(raster_Drone_path) as src:
+    ndvi_dron_resampled = src.read(
+        1,
+        out_shape=(1, profile_Sat['height'], profile_Sat['width']),
+        resampling=Resampling.bilinear
+    )
+ndvi_dron_resampled[(ndvi_dron_resampled < -1) | (ndvi_dron_resampled > 1)] = np.nan
+ndvi_sat[(ndvi_sat < -1) | (ndvi_sat > 1)] = np.nan
+
+#Valid pixel Null values
+valid_mask = ~np.isnan(ndvi_dron_resampled) & ~np.isnan(ndvi_sat)
+ndvi_dron_valid = ndvi_dron_resampled[valid_mask]
+ndvi_sat_valid = ndvi_sat[valid_mask]
+valid_pixel_count = np.count_nonzero(valid_mask)
+print(f'Number valid pixel before filtter: {valid_pixel_count}')
+ndvi_dron_valid = ndvi_dron_resampled[valid_mask]
+ndvi_sat_valid = ndvi_sat[valid_mask]
+valid_pixels = np.count_nonzero(ndvi_dron_valid)
+print(f'Number valid pixel: {valid_pixels}')
+
+mean_ndvi_dron = np.mean(ndvi_dron_valid)
+min_ndvi_dron = np.min(ndvi_dron_valid)
+max_ndvi_dron = np.max(ndvi_dron_valid)
+
+mean_ndvi_sat = np.mean(ndvi_sat_valid)
+min_ndvi_sat = np.min(ndvi_sat_valid)
+max_ndvi_sat = np.max(ndvi_sat_valid)
+
+print(f'Statistic NDVI Drone:\nMean: {mean_ndvi_dron}, Min: {min_ndvi_dron}, Max: {max_ndvi_dron}')
+print(f'Statistic NDVI Sat:\nMean: {mean_ndvi_sat}, Min: {min_ndvi_sat}, Max: {max_ndvi_sat}')
+
+#Plot comparation
+plt.figure(figsize=(10, 6))
+plt.scatter(ndvi_sat_valid, ndvi_dron_valid, alpha=0.5, color='blue')
+plt.xlabel('NDVI Sat')
+plt.ylabel('NDVI Drone')
+plt.title('Comparation NDVI Satellite vs NDVI Drone')
+plt.grid()
+plt.xlim(-1, 1)
+plt.ylim(-1, 1)
+plt.axline((0, 0), slope=1, color='red', linestyle='--', label='Reference Line (y=x)')
+plt.legend()
+plt.show()
+
+#Plot Histogram
+plt.figure(figsize=(12, 6))
+plt.subplot(1, 2, 1)
+sns.histplot(ndvi_dron_valid, bins=30, color='blue', kde=True)
+plt.title('Histogram NDVI Drone')
+plt.xlabel('NDVI Drone')
+plt.ylabel('Frecuency')
+
+plt.subplot(1, 2, 2)
+sns.histplot(ndvi_sat_valid, bins=30, color='green', kde=True)
+plt.title('Histogram NDVI Sat')
+plt.xlabel('NDVI Sat')
+plt.ylabel('Frecuency')
+plt.show()
